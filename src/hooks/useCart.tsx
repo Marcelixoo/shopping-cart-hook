@@ -42,7 +42,7 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const productIsNotInCart = (productId: number) => !productIsAlreadyInCart(productId);
 
-  async function productIsOutOfStock(productId: number, desiredAmount: number = 1) {
+  async function productWillRunOutOfStock(productId: number, desiredAmount: number = 1) {
     const { data: fromStock } = await api.get<Stock>(`stock/${productId}`);
 
     if (productIsAlreadyInCart(productId)) {
@@ -118,9 +118,9 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const addProduct = async (productId: number) => {
     try {
-      const isOutOfStock = await productIsOutOfStock(productId);
+      const willRunOutOfStock = await productWillRunOutOfStock(productId);
 
-      if (isOutOfStock) {
+      if (willRunOutOfStock) {
         throw new ProductOutOfStock();
       };
 
@@ -161,9 +161,9 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     try {
       assertAmountIsGreaterThanZero(amount);
 
-      const isOutOfStock = await productIsOutOfStock(productId, amount);
+      const willRunOutOfStock = await productWillRunOutOfStock(productId, amount);
 
-      if (isOutOfStock) {
+      if (willRunOutOfStock) {
         throw new ProductOutOfStock();
       }
 
