@@ -48,6 +48,12 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     if (productIsAlreadyInCart(productId)) {
       const fromCart = cart.find(product => productId === product.id) as Product;
 
+      const shouldDecreaseAmount = fromCart.amount > desiredAmount;
+
+      if (shouldDecreaseAmount) {
+        return fromStock.amount - desiredAmount < 0;
+      }
+
       return fromStock.amount < desiredAmount + fromCart.amount;
     }
 
@@ -124,6 +130,7 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     } catch(error) {
       if (error instanceof ProductOutOfStock) {
         toast.error(error.message);
+        return;
       }
       toast.error('Erro na adição do produto');
     }
@@ -170,11 +177,14 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     } catch (error) {
       if (error instanceof ProductOutOfStock) {
         toast.error(error.message);
+        return;
       }
 
       if (error instanceof ProductNotFoundInCart) {
         toast.error(error.message);
+        return;
       }
+
       toast.error('Erro na alteração de quantidade do produto');
     }
   };
