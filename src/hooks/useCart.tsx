@@ -1,8 +1,14 @@
 import { createContext, ReactNode, useContext, useState } from 'react';
 import { toast } from 'react-toastify';
-import { api } from '../services/api';
-import { Product, Stock } from '../types';
-import { ProductNotFoundInCart, ProductOutOfStock } from './errors';
+import { ProductNotFoundInCart, ProductOutOfStock } from './cart/errors';
+import {
+  assertAmountIsGreaterThanZero,
+  Cart,
+  getCartWithNewProductAmount,
+  getCartWithNewProductOrProductAmountIncremented,
+  productIsNotInCart,
+  productWillRunOutOfStock
+} from './cart/cart';
 
 const LOCAL_STORAGE_KEY = '@RocketShoes:cart';
 
@@ -16,7 +22,7 @@ interface UpdateProductAmount {
 }
 
 interface CartContextData {
-  cart: Product[];
+  cart: Cart;
   addProduct: (productId: number) => Promise<void>;
   removeProduct: (productId: number) => void;
   updateProductAmount: ({ productId, amount }: UpdateProductAmount) => void;
@@ -25,7 +31,7 @@ interface CartContextData {
 const CartContext = createContext<CartContextData>({} as CartContextData);
 
 export function CartProvider({ children }: CartProviderProps): JSX.Element {
-  const [cart, setCart] = useState<Product[]>(() => {
+  const [cart, setCart] = useState<Cart>(() => {
     const storagedCart = localStorage.getItem(LOCAL_STORAGE_KEY);
 
     if (storagedCart) {
@@ -35,96 +41,20 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     return [];
   });
 
-  const setCartAs = (newCart: Product[]) => {
+  const setCartAs = (newCart: Cart) => {
     setCart(newCart);
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newCart));
   }
 
-  const productIsNotInCart = (productId: number) => !productIsAlreadyInCart(productId);
-
-  async function productWillRunOutOfStock(productId: number, desiredAmount: number = 1) {
-    const { data: fromStock } = await api.get<Stock>(`stock/${productId}`);
-
-    if (productIsAlreadyInCart(productId)) {
-      const fromCart = cart.find(product => productId === product.id) as Product;
-
-      const shouldDecreaseAmount = fromCart.amount > desiredAmount;
-
-      if (shouldDecreaseAmount) {
-        return fromStock.amount - desiredAmount < 0;
-      }
-
-      return fromStock.amount < desiredAmount + fromCart.amount;
-    }
-
-    return fromStock.amount < desiredAmount;
-  }
-
-  function productIsAlreadyInCart(productId: number): boolean {
-    const productIsAlreadyInCart = cart.find(product => productId === product.id);
-
-    return productIsAlreadyInCart !== undefined;
-  }
-
-  function getCartWithProductAmountIncremented(productId: number, amount: number = 1): Product[] {
-    const newCart = cart.map((product) => {
-      if (product.id === productId) {
-        return {
-          ...product,
-          amount: product.amount + amount
-        }
-      }
-
-      return product;
-    });
-
-    return newCart;
-  }
-
-  function getCartWithNewProductAmount(productId: number, amount: number = 1): Product[] {
-    const newCart = cart.map((product) => {
-      if (product.id === productId) {
-        return {
-          ...product,
-          amount: amount
-        }
-      }
-
-      return product;
-    });
-
-    return newCart;
-  }
-
-  async function getCartWithNewProduct(productId: number): Promise<Product[]> {
-    const { data: newProduct } = await api.get<Product>(`products/${productId}`);
-
-    return [
-      ...cart,
-      {
-        ...newProduct,
-        amount: 1
-      }
-    ];
-  }
-
-  async function getCartWithNewProductOrProductAmountIncremented(productId: number): Promise<Product[]> {
-    if (productIsAlreadyInCart(productId)) {
-      return getCartWithProductAmountIncremented(productId);
-    }
-
-    return await getCartWithNewProduct(productId);
-  }
-
   const addProduct = async (productId: number) => {
     try {
-      const willRunOutOfStock = await productWillRunOutOfStock(productId);
+      const willRunOutOfStock = await productWillRunOutOfStock(cart, productId);
 
       if (willRunOutOfStock) {
         throw new ProductOutOfStock();
       };
 
-      const newCart = await getCartWithNewProductOrProductAmountIncremented(productId);
+      const newCart = await getCartWithNewProductOrProductAmountIncremented(cart, productId);
 
       setCartAs(newCart);
     } catch(error) {
@@ -136,15 +66,9 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     }
   };
 
-  function assertAmountIsGreaterThanZero(amount: number) {
-    if (amount <= 0) {
-      throw new Error("Quantidade deve ser maior do que zero!");
-    }
-  }
-
   const removeProduct = async (productId: number) => {
     try {
-      if (productIsNotInCart(productId)) {
+      if (productIsNotInCart(cart, productId)) {
         throw new ProductNotFoundInCart();
       }
 
@@ -161,17 +85,17 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
     try {
       assertAmountIsGreaterThanZero(amount);
 
-      const willRunOutOfStock = await productWillRunOutOfStock(productId, amount);
+      const willRunOutOfStock = await productWillRunOutOfStock(cart, productId, amount);
 
       if (willRunOutOfStock) {
         throw new ProductOutOfStock();
       }
 
-      if (productIsNotInCart(productId)) {
+      if (productIsNotInCart(cart, productId)) {
         throw new ProductNotFoundInCart();
       }
 
-      const newCart = getCartWithNewProductAmount(productId, amount);
+      const newCart = getCartWithNewProductAmount(cart, productId, amount);
 
       setCartAs(newCart);
     } catch (error) {
@@ -198,8 +122,4 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
   );
 }
 
-export function useCart(): CartContextData {
-  const context = useContext(CartContext);
-
-  return context;
-}
+export const useCart = () => useContext(CartContext);
