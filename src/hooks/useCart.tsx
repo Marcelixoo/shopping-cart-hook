@@ -5,7 +5,7 @@ import {
   assertAmountIsGreaterThanZero,
   Cart,
   getCartWithNewProductAmount,
-  getCartWithNewProductOrProductAmountIncremented,
+  getNewCartWithProductUpdated,
   productIsNotInCart,
   productWillRunOutOfStock
 } from './cart/cart';
@@ -48,13 +48,13 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const addProduct = async (productId: number) => {
     try {
-      const willRunOutOfStock = await productWillRunOutOfStock(cart, productId);
+      const willRunOutOfStock = await productWillRunOutOfStock(cart, productId, 1, true);
 
       if (willRunOutOfStock) {
         throw new ProductOutOfStock();
       };
 
-      const newCart = await getCartWithNewProductOrProductAmountIncremented(cart, productId);
+      const newCart = await getNewCartWithProductUpdated(cart, productId);
 
       setCartAs(newCart);
     } catch(error) {

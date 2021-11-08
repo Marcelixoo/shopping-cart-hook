@@ -10,17 +10,19 @@ export const assertAmountIsGreaterThanZero = (amount: number) => {
   }
 }
 
-export const productWillRunOutOfStock = async (cart: Cart, productId: number, desiredAmount: number = 1) => {
+export const productWillRunOutOfStock = async (
+  cart: Cart,
+  productId: number,
+  desiredAmount: number,
+  shouldConsiderCurrentAmount = false
+) => {
   const { data: fromStock } = await api.get<Stock>(`stock/${productId}`);
 
-  if (productIsAlreadyInCart(cart, productId)) {
+  if (
+    productIsAlreadyInCart(cart, productId)
+    && shouldConsiderCurrentAmount
+  ) {
     const fromCart = cart.find(product => productId === product.id) as Product;
-
-    const shouldDecreaseAmount = fromCart.amount > desiredAmount;
-
-    if (shouldDecreaseAmount) {
-      return fromStock.amount - desiredAmount < 0;
-    }
 
     return fromStock.amount < desiredAmount + fromCart.amount;
   }
@@ -51,9 +53,9 @@ export const getCartWithNewProductAmount = (cart: Cart, productId: number, amoun
   return newCart;
 }
 
-export const getCartWithNewProductOrProductAmountIncremented = async (cart: Cart, productId: number): Promise<Cart> => {
+export const getNewCartWithProductUpdated = async (cart: Cart, productId: number): Promise<Cart> => {
   if (productIsAlreadyInCart(cart, productId)) {
-    return getCartWithProductAmountIncremented(cart, productId);
+    return getCartWithProductAmountIncrementedByOne(cart, productId);
   }
 
   return await getCartWithNewProduct(cart, productId);
@@ -71,12 +73,12 @@ const getCartWithNewProduct = async (cart: Cart, productId: number): Promise<Car
   ];
 }
 
-const getCartWithProductAmountIncremented = (cart: Cart, productId: number, amount: number = 1): Cart => {
+const getCartWithProductAmountIncrementedByOne = (cart: Cart, productId: number): Cart => {
   const newCart = cart.map((product) => {
     if (product.id === productId) {
       return {
         ...product,
-        amount: product.amount + amount
+        amount: product.amount + 1
       }
     }
 
